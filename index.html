@@ -5,6 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#040810" />
     <title>P.R.I.S.M.</title>
+    <style>
+      /* Default accent — matches the fixed cyan every user starts with.
+         PRISM.jsx overwrites this on document.documentElement once a
+         signed-in user's saved choice loads. */
+      :root {
+        --prism-accent-rgb: 0, 212, 255;
+        /* Fixed secondary — not user-themeable, never overwritten. Used
+           for the retro-wave dual-line effects (panel borders, node
+           migration). PRISM.jsx's canvas-drawn orb can't read this (no
+           CSS cascade inside <canvas>) and carries its own literal copy
+           — keep the two in sync if this ever changes. */
+        --prism-secondary-rgb: 75, 60, 255;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

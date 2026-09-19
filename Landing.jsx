@@ -190,7 +190,7 @@ export default function Landing() {
       <nav style={{ padding: "14px 24px", borderBottom: "1px solid rgba(0,212,255,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(4,8,16,0.9)", backdropFilter: "blur(12px)", position: "sticky", top: 0, zIndex: 100 }}>
         <span style={{ fontSize: 13, letterSpacing: 4, fontWeight: "bold" }}>P.R.I.S.M.</span>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <span style={{ fontSize: 8, letterSpacing: 2, color: "rgba(0,212,255,0.35)" }}>BY A.R.C. INDUSTRIES</span>
+          <span style={{ fontSize: 8, letterSpacing: 2, color: "rgba(0,212,255,0.35)" }}>BY N.A.R.V.I.</span>
           <button onClick={() => navigate("/app")} style={{ background: "rgba(0,212,255,0.08)", border: "1px solid rgba(0,212,255,0.4)", color: CYAN, padding: "6px 16px", fontSize: 9, letterSpacing: 2, cursor: "pointer", fontFamily: FONT }}>
             ENTER →
           </button>
@@ -357,7 +357,7 @@ export default function Landing() {
       <footer style={{ padding: "36px 24px", borderTop: "1px solid rgba(0,212,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
         <div>
           <div style={{ fontSize: 11, letterSpacing: 4, fontWeight: "bold", marginBottom: 4 }}>P.R.I.S.M.</div>
-          <div style={{ fontSize: 7, letterSpacing: 2, color: "rgba(0,212,255,0.3)" }}>© 2026 A.R.C. INDUSTRIES LLC</div>
+          <div style={{ fontSize: 7, letterSpacing: 2, color: "rgba(0,212,255,0.3)" }}>© 2026 N.A.R.V.I.</div>
         </div>
         <div style={{ display: "flex", gap: 20 }}>
           {["PRIVACY","TERMS","CONTACT"].map(l => (
