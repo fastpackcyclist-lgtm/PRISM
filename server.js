@@ -98,43 +98,80 @@ app.post("/api/embed", async (req, res) => {
   }
 });
 
-// Live headlines for the Intel panel's News tab. Returned verbatim from
-// NewsAPI — no AI touches this response. The "deterministic, not estimated"
-// rule applies to news the same way it applies to the finance/schedule
-// dossiers: real data as-fetched, never paraphrased or summarized into
-// something that could quietly drift from the source.
+// Live headlines for the Intel panel's News and Risk tabs. Returned verbatim
+// from the source — no AI touches this response. The "deterministic, not
+// estimated" rule applies to news the same way it applies to the
+// finance/schedule dossiers: real data as-fetched, never paraphrased or
+// summarized into something that could quietly drift from the source.
+//
+// Source: previously NewsAPI.org, which is what narviai.com's own news
+// system ran into first — its free tier explicitly forbids non-localhost/
+// production use. Swapped 2026-09-24 to Hacker News Algolia for both tabs,
+// same pattern already proven on narviai.com — free, keyless, ToS-clean:
+//   - General (no q param): front-page-quality stories only (points>40).
+//   - Risk tab (q param present): keyword search instead of a points floor
+//     — geopolitical/sanctions/tariff coverage is real but rarer on HN, so
+//     requiring points>40 there would return almost nothing.
+// GDELT's DOC API was tried first (a better conceptual fit for geopolitical
+// monitoring) but its host is unreachable from this environment — DNS
+// resolves, the connection itself times out. Worth revisiting from a
+// different host; HN keyword search is the reliable fallback for now.
+// Response shape kept identical ({ articles: [{ title, url, source:{name},
+// publishedAt }] }) so the frontend needed zero changes.
 app.get("/api/news", async (req, res) => {
-  const apiKey = process.env.NEWSAPI_KEY;
-
-  if (!apiKey) {
-    console.error("❌  NEWSAPI_KEY is not set. Add it to .env.local");
-    return res.status(500).json({ error: "News API key not configured. Check .env.local" });
-  }
-
   const pageSize = Math.min(parseInt(req.query.pageSize) || 12, 20);
   const q = req.query.q;
-  const domains = req.query.domains;
-  const searchIn = req.query.searchIn;
 
   try {
-    // With a q param, switch to /v2/everything (keyword search) — used by
-    // the Risk tab to pull conflict/sanctions/tariff-relevant coverage
-    // instead of a fixed category. Same verbatim, no-AI-touch rule either way.
-    // domains/searchIn are optional narrowing params the Risk tab uses to
-    // keep loose keywords like "conflict" from matching entertainment
-    // coverage — NewsAPI's default search scans title+description+content,
-    // so a word can match deep in unrelated body text without either.
-    let url;
+    let articles;
+
     if (q) {
-      url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&language=en&sortBy=publishedAt&pageSize=${pageSize}`;
-      if (domains) url += `&domains=${encodeURIComponent(domains)}`;
-      if (searchIn) url += `&searchIn=${encodeURIComponent(searchIn)}`;
+      // Risk tab — HN Algolia keyword search. q arrives as an OR-joined,
+      // quoted-phrase list (the same shape it was always sent in, built for
+      // NewsAPI's boolean query syntax) — Algolia's query param has no OR
+      // operator and no exact-phrase quoting, so passing the raw string
+      // through matches nothing. Split it into individual terms instead,
+      // run each as its own search, then merge/dedupe/sort by recency —
+      // real multi-topic coverage without needing boolean support Algolia
+      // doesn't have.
+      const terms = q
+        .split(/\s+OR\s+/i)
+        .map((t) => t.trim().replace(/^"|"$/g, ""))
+        .filter(Boolean);
+      const results = await Promise.all(
+        terms.map((term) =>
+          fetch(`https://hn.algolia.com/api/v1/search_by_date?query=${encodeURIComponent(term)}&tags=story&hitsPerPage=${pageSize}`)
+            .then((r) => r.json())
+            .then((d) => d.hits || [])
+            .catch(() => [])
+        )
+      );
+      const seen = new Set();
+      articles = results
+        .flat()
+        .filter((h) => (seen.has(h.objectID) ? false : (seen.add(h.objectID), true)))
+        .sort((a, b) => b.created_at_i - a.created_at_i)
+        .slice(0, pageSize)
+        .map((h) => ({
+          title: h.title,
+          url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+          source: { name: "Hacker News" },
+          publishedAt: h.created_at,
+        }));
     } else {
-      url = `https://newsapi.org/v2/top-headlines?country=us&category=${encodeURIComponent(req.query.category || "general")}&pageSize=${pageSize}`;
+      // General tab — Hacker News Algolia, front-page-quality only.
+      const url = `https://hn.algolia.com/api/v1/search_by_date?tags=story&numericFilters=points%3E40&hitsPerPage=${pageSize}`;
+      const response = await fetch(url);
+      const data = await response.json();
+      articles = (data.hits || []).map((h) => ({
+        title: h.title,
+        url: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`,
+        source: { name: "Hacker News" },
+        publishedAt: h.created_at,
+      }));
     }
-    const response = await fetch(url, { headers: { "X-Api-Key": apiKey } });
-    const data = await response.json();
-    res.status(response.status).json(data);
+
+    res.json({ articles });
   } catch (err) {
     console.error("News proxy error:", err.message);
     res.status(500).json({ error: "Proxy error", detail: err.message });
@@ -199,8 +236,7 @@ app.listen(PORT, () => {
   console.log(`  ⬡  API key: ${process.env.ANTHROPIC_API_KEY ? "✓ loaded" : "✗ MISSING — add to .env.local"}`);
   console.log(`  ⬡  Embeddings: http://localhost:${PORT}/api/embed`);
   console.log(`  ⬡  Voyage key: ${process.env.VOYAGE_API_KEY ? "✓ loaded" : "✗ MISSING — add VOYAGE_API_KEY to .env.local"}`);
-  console.log(`  ⬡  News: http://localhost:${PORT}/api/news`);
-  console.log(`  ⬡  News key: ${process.env.NEWSAPI_KEY ? "✓ loaded" : "✗ MISSING — add NEWSAPI_KEY to .env.local"}`);
+  console.log(`  ⬡  News: http://localhost:${PORT}/api/news (Hacker News Algolia — keyless, no key needed)`);
   console.log(`  ⬡  Markets: http://localhost:${PORT}/api/markets`);
   console.log(`  ⬡  Alpha Vantage key: ${process.env.ALPHA_VANTAGE_KEY ? "✓ loaded" : "✗ MISSING — add ALPHA_VANTAGE_KEY to .env.local"}\n`);
 });

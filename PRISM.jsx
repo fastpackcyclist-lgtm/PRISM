@@ -1057,7 +1057,7 @@ export default function PRISM() {
     }
   }, [activePanel, intelTab, marketQuotes.length, marketsLoading, marketsError, fetchMarkets]);
 
-  // ── Intel / Risk — same NewsAPI key, keyword search instead of category ──
+  // ── Intel / Risk — same /api/news endpoint, routed to GDELT via the q param ──
   const fetchRisk = useCallback(async () => {
     setRiskLoading(true); setRiskError(null);
     try {
